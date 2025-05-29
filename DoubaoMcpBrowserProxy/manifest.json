@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "DoubaoMcpBrowserProxy",
+  "version": "1.1",
+  "description": "Enhances Doubao functionality",
+  "permissions": [
+    "cookies",
+    "webNavigation",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://www.doubao.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "id": "doubao-enhancer",
+      "matches": ["https://www.doubao.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "icons": {
+    "48": "icon-48.png",
+    "128": "icon-128.png"
+  }
+} 
