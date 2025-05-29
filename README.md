@@ -1,3 +1,5 @@
+![DouBaoFreeImageGen Logo](assets/logo.png)
+
 # DouBaoFreeImageGen
 
 DouBaoFreeImageGen 是一个基于豆包客户端的文生图 MCP 服务，可以无限次调用豆包的文生图功能，并对外提供 MCP 服务接口。
