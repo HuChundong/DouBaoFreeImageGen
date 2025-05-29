@@ -14,7 +14,7 @@ DouBaoFreeImageGen 是一个基于豆包客户端的文生图 MCP 服务，可�
 
 ## 演示视频
 
-<video src="assets/demo.mp4" controls width="100%"></video>
+https://github.com/user-attachments/assets/98ed6c08-1252-4976-90ed-53440ef13280
 
 ## 系统要求
 
