@@ -12,6 +12,10 @@ DouBaoFreeImageGen 是一个基于豆包客户端的文生图 MCP 服务，可�
 - 🔒 不支持任务状态管理和并发控制
 - 📝 不完整的日志记录系统
 
+## 演示视频
+
+<video src="assets/demo.mp4" controls width="100%"></video>
+
 ## 系统要求
 
 - Python 3.8+
