@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "DoubaoMcpBrowserProxy",
-  "version": "1.1",
+  "version": "1.2",
   "description": "Enhances Doubao functionality",
   "permissions": [
     "cookies",
@@ -9,7 +9,7 @@
     "storage"
   ],
   "host_permissions": [
-    "https://www.doubao.com/*"
+    "<all_urls>"
   ],
   "background": {
     "service_worker": "background.js"
