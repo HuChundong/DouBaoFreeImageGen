@@ -37,6 +37,18 @@ cd McpServer
 pip install -r requirements.txt
 ```
 
+3. 安装浏览器插件：
+
+   a. 打开豆包客户端，进入扩展程序页面（在地址栏输入 `chrome://extensions/`）
+   
+   b. 开启右上角的"开发者模式"
+   
+   c. 选择以下任一方式安装插件：
+      - 方式一：将项目中的 `DoubaoMcpBrowserProxy.crx` 文件拖拽到扩展程序页面
+      - 方式二：点击"加载已解压的扩展程序"，选择项目中的 `DoubaoMcpBrowserProxy` 目录
+
+4. 安装完成后，确保插件已启用（插件图标显示在浏览器工具栏中）
+
 ## 使用方法
 
 1. 启动服务：
