@@ -24,6 +24,8 @@ https://github.com/user-attachments/assets/98ed6c08-1252-4976-90ed-53440ef13280
 
 ## 安装说明
 
+⚠️ **重要提示**：安装浏览器插件后将会影响豆包客户端的正常使用（每次都会移除cookie,不保留聊天记录，生成图片会自动重新加载），建议在独立的服务器或虚拟机上进行部署。
+
 1. 克隆项目到本地：
 ```bash
 git clone https://github.com/yourusername/DouBaoFreeImageGen.git
