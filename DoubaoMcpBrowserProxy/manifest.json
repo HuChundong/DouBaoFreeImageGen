@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "DoubaoMcpBrowserProxy",
-  "version": "1.2",
+  "version": "1.3",
   "description": "Enhances Doubao functionality",
   "permissions": [
     "cookies",
@@ -22,6 +22,10 @@
       "run_at": "document_start"
     }
   ],
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
   "icons": {
     "48": "icon-48.png",
     "128": "icon-128.png"
