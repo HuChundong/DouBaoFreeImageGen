@@ -40,6 +40,23 @@ let reconnectTimeout = null;
 const processedUrls = new Set();
 const foundImageUrls = [];
 let imageCollectionTimer = null;
+let shouldAutoReload = true; // 默认开启自动刷新
+
+// 从 Chrome 存储中读取设置
+chrome.storage.sync.get(['autoReload'], function(result) {
+    if (result.autoReload !== undefined) {
+        shouldAutoReload = result.autoReload;
+        console.log(`[Settings] Auto reload is ${shouldAutoReload ? 'enabled' : 'disabled'}`);
+    }
+});
+
+// 监听设置变化
+chrome.storage.onChanged.addListener(function(changes, namespace) {
+    if (namespace === 'sync' && changes.autoReload) {
+        shouldAutoReload = changes.autoReload.newValue;
+        console.log(`[Settings] Auto reload setting changed to ${shouldAutoReload}`);
+    }
+});
 
 // --- WebSocket Logic ---
 function connectWebSocket() {
@@ -174,10 +191,14 @@ function performSendAndCleanup() {
         processedUrls.clear();
         console.log("[Cleanup] Internal image lists cleared.");
 
-        console.log("[Cleanup] Reloading page...");
-        setTimeout(() => {
-            window.location.href = 'https://www.doubao.com/chat/';
-        }, 500);
+        if (shouldAutoReload) {
+            console.log("[Cleanup] Auto reload is enabled. Reloading page...");
+            setTimeout(() => {
+                window.location.href = 'https://www.doubao.com/chat/';
+            }, 500);
+        } else {
+            console.log("[Cleanup] Auto reload is disabled. Skipping page reload.");
+        }
     }, 100);
 }
 
@@ -254,7 +275,7 @@ async function handleReceivedCommand(commandText) {
 
 // --- Image Finding Logic ---
 const requiredDomainPrefix = 'ocean-cloud-tos/image_skill';
-const originalPatternSuffix = '-image-dark-watermark.png';
+const originalPatternSuffix = '-web-watermark-v2.png';
 
 function processImageElement(imgElement) {
     const imageUrl = imgElement.src;
@@ -320,7 +341,12 @@ const observerCallback = (mutationList, observer) => {
 };
 
 const observer = new MutationObserver(observerCallback);
-const observerConfig = { childList: true, subtree: true };
+const observerConfig = { 
+    childList: true, 
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['src']  // 只监听 src 属性的变化
+};
 
 // --- Initialization ---
 window.addEventListener('load', () => {
