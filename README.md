@@ -51,6 +51,18 @@ pip install -r requirements.txt
 
 4. 安装完成后，确保插件已启用（插件图标显示在浏览器工具栏中）
 
+5. 配置豆包客户端启动参数：
+   - 在豆包客户端的快捷方式中，修改"目标"字段，添加以下启动参数：
+   ```
+   --silent-debugger-extension-api
+   ```
+   修改后：
+   ```
+   "E:\Program Files (x86)\Doubao\app\Doubao.exe" --profile-directory=Default --silent-debugger-extension-api
+   ```
+   - 注意：请根据你的豆包客户端实际安装路径修改上述路径
+   - 添加此参数可以去除调试模式的提示信息
+
 ## 使用方法
 
 1. 启动服务：
