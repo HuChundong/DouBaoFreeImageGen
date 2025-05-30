@@ -39,9 +39,11 @@ let ws = null;
 let reconnectTimeout = null;
 const processedUrls = new Set();
 const foundImageUrls = [];
+const downloadImageUrls = []; // 用于下载的独立图片列表
 let imageCollectionTimer = null;
 let shouldAutoReload = true; // 默认开启自动刷新
 let shouldClearCookies = true; // 默认清除cookie
+let downloadButton = null; // 下载按钮引用
 
 // 监听来自background.js的消息
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -53,9 +55,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             if (!processedUrls.has(url)) {
                 processedUrls.add(url);
                 foundImageUrls.push(url);
+                downloadImageUrls.push(url); // 同时添加到下载列表
                 console.log(`[Message Handler] Added URL to collection. Total collected: ${foundImageUrls.length}`);
             }
         });
+
+        // 更新下载按钮状态
+        updateDownloadButton();
 
         // 直接发送并清理
         performSendAndCleanup();
@@ -90,6 +96,9 @@ chrome.storage.onChanged.addListener(function(changes, namespace) {
 
 // --- WebSocket Logic ---
 function connectWebSocket() {
+    // 确保下载按钮已创建
+    createDownloadButton();
+    
     if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) {
         console.log("[WebSocket] Connection already connecting or open.");
         return;
@@ -304,6 +313,7 @@ async function handleReceivedCommand(commandText) {
 }
 
 // --- Initialization ---
+
 window.addEventListener('load', () => {
     console.log("[Script] Window 'load' event triggered. Starting WebSocket connection.");
     connectWebSocket();
@@ -320,4 +330,87 @@ window.addEventListener('beforeunload', () => {
         console.log("[Script] WebSocket connection closed.");
     }
     clearTimeout(reconnectTimeout);
-}); 
+});
+
+// 创建下载按钮
+function createDownloadButton() {
+    if (downloadButton) {
+        return;
+    }
+
+    // 创建按钮元素
+    downloadButton = document.createElement('button');
+    downloadButton.textContent = '无水印下载';
+    downloadButton.style.cssText = `
+        position: fixed;
+        top: 10px;
+        right: 150px;
+        padding: 10px 20px;
+        background-color: #4CAF50;
+        color: white;
+        border: none;
+        border-radius: 12px;
+        cursor: pointer;
+        z-index: 9999;
+        font-size: 12px;
+    `;
+
+    // 添加悬停效果
+    downloadButton.addEventListener('mouseover', () => {
+        downloadButton.style.backgroundColor = '#45a049';
+    });
+    downloadButton.addEventListener('mouseout', () => {
+        downloadButton.style.backgroundColor = '#4CAF50';
+    });
+
+    // 添加点击事件
+    downloadButton.addEventListener('click', async () => {
+        if (downloadImageUrls.length === 0) {
+            alert('没有可下载的图片');
+            return;
+        }
+
+        // 创建下载链接并触发下载
+        for (let i = 0; i < downloadImageUrls.length; i++) {
+            const url = downloadImageUrls[i];
+            try {
+                // 获取图片数据
+                const response = await fetch(url);
+                const blob = await response.blob();
+                
+                // 创建下载链接
+                const downloadUrl = window.URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = downloadUrl;
+                link.download = `image_${i + 1}.png`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                // 清理 URL 对象
+                window.URL.revokeObjectURL(downloadUrl);
+                
+                // 添加延迟以避免浏览器阻止多个下载
+                await new Promise(resolve => setTimeout(resolve, 500));
+            } catch (error) {
+                console.error(`下载图片失败: ${url}`, error);
+            }
+        }
+    });
+
+    document.body.appendChild(downloadButton);
+}
+
+// 更新下载按钮状态
+function updateDownloadButton() {
+    if (!downloadButton) {
+        createDownloadButton();
+    }
+    
+    if (downloadImageUrls.length > 0) {
+        downloadButton.style.display = 'block';
+        downloadButton.textContent = `下载图片 (${downloadImageUrls.length})`;
+    } else {
+        downloadButton.style.display = 'none';
+    }
+} 
