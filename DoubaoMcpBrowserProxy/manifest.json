@@ -6,10 +6,15 @@
   "permissions": [
     "cookies",
     "webNavigation",
-    "storage"
+    "storage",
+    "debugger"
   ],
   "host_permissions": [
-    "<all_urls>"
+    "<all_urls>",
+    "https://*.doubao.com/*",
+    "https://doubao.com/*",
+    "http://*.doubao.com/*",
+    "http://doubao.com/*"
   ],
   "background": {
     "service_worker": "background.js"

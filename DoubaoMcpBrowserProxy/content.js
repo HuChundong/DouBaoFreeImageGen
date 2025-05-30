@@ -41,20 +41,50 @@ const processedUrls = new Set();
 const foundImageUrls = [];
 let imageCollectionTimer = null;
 let shouldAutoReload = true; // 默认开启自动刷新
+let shouldClearCookies = true; // 默认清除cookie
+
+// 监听来自background.js的消息
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.type === 'IMAGE_URLS') {
+        console.log('[Message Handler] Received image URLs from background:', message.urls);
+        
+        // 将新的URL添加到foundImageUrls中
+        message.urls.forEach(url => {
+            if (!processedUrls.has(url)) {
+                processedUrls.add(url);
+                foundImageUrls.push(url);
+                console.log(`[Message Handler] Added URL to collection. Total collected: ${foundImageUrls.length}`);
+            }
+        });
+
+        // 直接发送并清理
+        performSendAndCleanup();
+    }
+});
 
 // 从 Chrome 存储中读取设置
-chrome.storage.sync.get(['autoReload'], function(result) {
+chrome.storage.sync.get(['autoReload', 'clearCookies'], function(result) {
     if (result.autoReload !== undefined) {
         shouldAutoReload = result.autoReload;
         console.log(`[Settings] Auto reload is ${shouldAutoReload ? 'enabled' : 'disabled'}`);
+    }
+    if (result.clearCookies !== undefined) {
+        shouldClearCookies = result.clearCookies;
+        console.log(`[Settings] Clear cookies is ${shouldClearCookies ? 'enabled' : 'disabled'}`);
     }
 });
 
 // 监听设置变化
 chrome.storage.onChanged.addListener(function(changes, namespace) {
-    if (namespace === 'sync' && changes.autoReload) {
-        shouldAutoReload = changes.autoReload.newValue;
-        console.log(`[Settings] Auto reload setting changed to ${shouldAutoReload}`);
+    if (namespace === 'sync') {
+        if (changes.autoReload) {
+            shouldAutoReload = changes.autoReload.newValue;
+            console.log(`[Settings] Auto reload setting changed to ${shouldAutoReload}`);
+        }
+        if (changes.clearCookies) {
+            shouldClearCookies = changes.clearCookies.newValue;
+            console.log(`[Settings] Clear cookies setting changed to ${shouldClearCookies}`);
+        }
     }
 });
 
@@ -273,115 +303,15 @@ async function handleReceivedCommand(commandText) {
     }
 }
 
-// --- Image Finding Logic ---
-const requiredDomainPrefix = 'ocean-cloud-tos/image_skill';
-const originalPatternSuffix = '-web-watermark-v2.png';
-
-function processImageElement(imgElement) {
-    const imageUrl = imgElement.src;
-
-    if (!imageUrl) {
-        return;
-    }
-
-    if (processedUrls.has(imageUrl)) {
-        return;
-    }
-
-    try {
-        const url = new URL(imageUrl);
-        const pathname = url.pathname;
-
-        if (imageUrl.includes(requiredDomainPrefix) && pathname.endsWith(originalPatternSuffix)) {
-            console.log('[Image Finder] Found matching image URL:', imageUrl);
-            processedUrls.add(imageUrl);
-            foundImageUrls.push(imageUrl);
-            console.log(`[Image Finder] Added URL to collection. Total collected: ${foundImageUrls.length}`);
-
-            console.log(`[Image Finder] Scheduling send/cleanup in ${IMAGE_COLLECTION_SETTLE_DELAY_MS}ms (timer reset).`);
-            clearTimeout(imageCollectionTimer);
-            imageCollectionTimer = setTimeout(performSendAndCleanup, IMAGE_COLLECTION_SETTLE_DELAY_MS);
-        }
-    } catch (e) {
-        console.error('[Image Finder] URL parsing error for src:', imgElement.src, e);
-    }
-}
-
-// --- DOM Scanning & Observation ---
-function scanForImagesInContainer(containerElement) {
-    if (!containerElement || typeof containerElement.querySelectorAll !== 'function') {
-        console.warn("[Image Finder] Cannot scan container, element is invalid.");
-        return;
-    }
-    console.log("[Image Finder] Performing initial scan for images in container...");
-    const images = containerElement.querySelectorAll('img');
-    images.forEach(processImageElement);
-    console.log(`[Image Finder] Initial scan completed. ${images.length} images found. Debounce timer potentially started.`);
-}
-
-const observerCallback = (mutationList, observer) => {
-    let imagesFoundInMutation = 0;
-    for (const mutation of mutationList) {
-        if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
-            for (const addedNode of mutation.addedNodes) {
-                if (addedNode.nodeType === Node.ELEMENT_NODE) {
-                    if (addedNode.tagName === 'IMG') {
-                        processImageElement(addedNode);
-                        imagesFoundInMutation++;
-                    }
-                    const newImagesInSubtree = addedNode.querySelectorAll('img');
-                    if (newImagesInSubtree.length > 0) {
-                        newImagesInSubtree.forEach(processImageElement);
-                        imagesFoundInMutation += newImagesInSubtree.length;
-                    }
-                }
-            }
-        }
-    }
-};
-
-const observer = new MutationObserver(observerCallback);
-const observerConfig = { 
-    childList: true, 
-    subtree: true,
-    attributes: true,
-    attributeFilter: ['src']  // 只监听 src 属性的变化
-};
-
 // --- Initialization ---
 window.addEventListener('load', () => {
-    console.log("[Script] Window 'load' event triggered. Starting initial scan and observer.");
-
+    console.log("[Script] Window 'load' event triggered. Starting WebSocket connection.");
     connectWebSocket();
-
-    setTimeout(() => {
-        scanForImagesInContainer(document.body || document.documentElement);
-        console.log("[Script] Initial DOM scan and image collection phase 1 completed.");
-    }, 1000);
-
-    setTimeout(() => {
-        try {
-            const targetNode = document.body || document.documentElement;
-            if (targetNode) {
-                observer.observe(targetNode, observerConfig);
-                console.log("[Script] MutationObserver started observing:", targetNode.tagName || 'Document');
-                console.log("[Script] Dynamic image collection enabled.");
-            } else {
-                console.warn("[Script] Could not find a suitable node (body or documentElement) to observe.");
-            }
-        } catch (e) {
-            console.error("[Script] Failed to start MutationObserver:", e);
-        }
-    }, 500);
 });
 
 // --- Cleanup ---
 window.addEventListener('beforeunload', () => {
     console.log("[Script] Page is unloading. Cleaning up resources.");
-    if (observer) {
-        observer.disconnect();
-        console.log("[Script] MutationObserver disconnected.");
-    }
     clearTimeout(imageCollectionTimer);
     console.log("[Script] Image collection debounce timer cleared.");
 
