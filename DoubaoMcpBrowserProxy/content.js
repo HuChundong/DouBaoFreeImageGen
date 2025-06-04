@@ -391,38 +391,47 @@ function updateDownloadButton() {
 
 // 添加弹窗相关函数
 function showImageDownloadModal() {
-    // 如果已存在弹窗则不重复创建
-    if (document.getElementById('image-download-modal')) {
-        document.getElementById('image-download-modal').style.display = 'block';
-        return;
+    // 遮罩层和弹窗只创建一次
+    let modalOverlay = document.getElementById('image-download-modal-overlay');
+    let modal = document.getElementById('image-download-modal');
+
+    if (!modalOverlay) {
+        // 创建遮罩层
+        modalOverlay = document.createElement('div');
+        modalOverlay.id = 'image-download-modal-overlay';
+        modalOverlay.style.cssText = `
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.4);
+            z-index: 10000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        `;
+        document.body.appendChild(modalOverlay);
     }
+    modalOverlay.style.display = 'flex';
 
-    // 创建遮罩层
-    const modalOverlay = document.createElement('div');
-    modalOverlay.id = 'image-download-modal-overlay';
-    modalOverlay.style.cssText = `
-        position: fixed;
-        top: 0; left: 0; right: 0; bottom: 0;
-        background: rgba(0,0,0,0.4);
-        z-index: 10000;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    `;
+    if (!modal) {
+        // 创建弹窗主体
+        modal = document.createElement('div');
+        modal.id = 'image-download-modal';
+        modal.style.cssText = `
+            background: #fff;
+            border-radius: 12px;
+            padding: 24px 20px 16px 20px;
+            max-width: 700px;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.18);
+            position: relative;
+        `;
+        modalOverlay.appendChild(modal);
+    }
+    modal.style.display = 'block';
 
-    // 创建弹窗主体
-    const modal = document.createElement('div');
-    modal.id = 'image-download-modal';
-    modal.style.cssText = `
-        background: #fff;
-        border-radius: 12px;
-        padding: 24px 20px 16px 20px;
-        max-width: 700px;
-        max-height: 80vh;
-        overflow-y: auto;
-        box-shadow: 0 4px 24px rgba(0,0,0,0.18);
-        position: relative;
-    `;
+    // 清空弹窗内容
+    modal.innerHTML = '';
 
     // 关闭按钮
     const closeBtn = document.createElement('span');
@@ -489,9 +498,6 @@ function showImageDownloadModal() {
     clearBtn.style.cssText = 'margin-top: 18px; padding: 8px 24px; font-size: 15px; border-radius: 8px; border: none; background: #f44336; color: #fff; cursor: pointer;';
     clearBtn.onclick = clearAllImages;
     modal.appendChild(clearBtn);
-
-    modalOverlay.appendChild(modal);
-    document.body.appendChild(modalOverlay);
 }
 
 function hideImageDownloadModal() {
