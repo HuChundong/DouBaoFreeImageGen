@@ -102,7 +102,7 @@ chrome.debugger.onEvent.addListener(async (source, method, params) => {
                 if (eventData.message && eventData.message.content) {
                   const content = JSON.parse(eventData.message.content);
                   if (content.creations && Array.isArray(content.creations)) {
-                    // 处理每个图片创建结果
+                    // 处理每个图片创建结果（旧结构）
                     content.creations.forEach(creation => {
                       if (creation.type === 1 && creation.image && creation.image.image_raw) {
                         const imageUrl = creation.image.image_raw.url;
@@ -111,6 +111,15 @@ chrome.debugger.onEvent.addListener(async (source, method, params) => {
                           console.log('Found image URL:', imageUrl);
                         }
                       }
+                    });
+                  } else if (content.data && Array.isArray(content.data)) {
+                    // 兼容新结构，遍历 data 数组
+                    content.data.forEach(item => {
+                      if (item.image_raw && item.image_raw.url) {
+                        imageUrls.push(item.image_raw.url);
+                        console.log('Found image URL (data):', item.image_raw.url);
+                      }
+                      // 如需其它格式可在此补充
                     });
                   }
                 }
@@ -129,6 +138,7 @@ chrome.debugger.onEvent.addListener(async (source, method, params) => {
           // 向content.js发送消息
           chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
             if (tabs[0]) {
+              console.log('发送图片清单')
               chrome.tabs.sendMessage(tabs[0].id, {
                 type: 'IMAGE_URLS',
                 urls: imageUrls
