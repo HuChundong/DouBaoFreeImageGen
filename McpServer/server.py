@@ -17,9 +17,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Server configuration
-SERVER_HOST = "localhost"  # Or '0.0.0.0'
+SERVER_HOST = "0.0.0.0"  # Or '0.0.0.0'
 WS_PORT = 8080  # WebSocket Port
-MCP_PORT = 8000  # FastMCP HTTP Port (must be different from WS_PORT)
+MCP_PORT = 8081  # FastMCP HTTP Port (must be different from WS_PORT)
 
 
 @dataclass
@@ -131,12 +131,12 @@ async def main_async():
     logger.info("FastMCP instance created.")
 
     @mcp.tool()
-    async def draw_image(ctx: Context, command: str) -> str:
+    async def draw_image(ctx: Context, prompt: str) -> str:
         """
         Draw an image.
 
         Args:
-            command (str): The command string to send to the client.
+            prompt (str): The prompt to draw an image.
 
         Returns:
             str: JSON string containing the status and list of image URLs.
@@ -162,8 +162,8 @@ async def main_async():
             app_context.image_urls.clear()
 
             # Send the command
-            await send_to_client(app_context.websocket, command)
-            logger.info(f"Sent command: {command}")
+            await send_to_client(app_context.websocket, prompt)
+            logger.info(f"Sent command: {prompt}")
 
             # Poll for image URLs
             max_wait_time = 90  # Maximum wait time in seconds
