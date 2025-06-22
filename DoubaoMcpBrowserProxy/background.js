@@ -167,12 +167,102 @@ chrome.debugger.onEvent.addListener(async (source, method, params) => {
   }
 });
 
+// --- WebSocket Logic ---
+const WEBSOCKET_URL = 'ws://localhost:8080';
+const RECONNECT_DELAY_MS = 5000;
+let ws = null;
+let reconnectTimeout = null;
+let doubaoTabId = null;
+
+function connectWebSocket() {
+    if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) {
+        console.log("[WebSocket] Connection already connecting or open.");
+        return;
+    }
+
+    console.log(`[WebSocket] Attempting to connect to ${WEBSOCKET_URL}`);
+
+    try {
+        ws = new WebSocket(WEBSOCKET_URL);
+
+        ws.onopen = () => {
+            console.log("[WebSocket] Connected successfully.");
+            clearTimeout(reconnectTimeout);
+            reconnectTimeout = null;
+            chrome.tabs.get(doubaoTabId, (tab) => {
+                if (tab) {
+                    sendWebSocketMessage({ type: 'scriptReady', url: tab.url });
+                }
+            });
+        };
+
+        ws.onmessage = (event) => {
+            console.log("[WebSocket] Message from server:", event.data);
+            if (doubaoTabId) {
+                chrome.tabs.sendMessage(doubaoTabId, {
+                    type: 'COMMAND_FROM_SERVER',
+                    data: event.data
+                });
+            }
+        };
+
+        ws.onerror = (error) => {
+            console.warn("[WebSocket] Error:", error);
+            ws.close();
+        };
+
+        ws.onclose = (event) => {
+            console.log(`[WebSocket] Disconnected (code: ${event.code}, reason: ${event.reason}).`);
+            ws = null;
+            if (!event.wasClean) {
+                scheduleReconnect();
+            }
+        };
+
+    } catch (e) {
+        console.error("[WebSocket] Failed to create WebSocket instance:", e);
+        scheduleReconnect();
+    }
+}
+
+function scheduleReconnect() {
+    if (reconnectTimeout === null) {
+        console.log(`[WebSocket] Scheduling reconnect in ${RECONNECT_DELAY_MS}ms...`);
+        reconnectTimeout = setTimeout(() => {
+            reconnectTimeout = null;
+            connectWebSocket();
+        }, RECONNECT_DELAY_MS);
+    }
+}
+
+function sendWebSocketMessage(data) {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        try {
+            const message = typeof data === 'object' ? JSON.stringify(data) : String(data);
+            ws.send(message);
+        } catch (e) {
+            console.error("[WebSocket] Failed to send message:", data, e);
+        }
+    } else {
+        console.warn("[WebSocket] Cannot send message, WebSocket is not OPEN. Message:", data);
+    }
+}
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.type === 'COLLECTED_IMAGE_URLS') {
+        console.log('[Background] Received collected image URLs from content script:', message.urls);
+        sendWebSocketMessage({ type: 'collectedImageUrls', urls: message.urls });
+    }
+});
+
 // 为所有标签页附加调试器
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (
     changeInfo.status === "complete" &&
     tab.url?.startsWith("https://www.doubao.com")
   ) {
+    doubaoTabId = tabId; // Store the tab ID
+    connectWebSocket(); // Connect WebSocket when the page is ready
     try {
       chrome.debugger.attach({ tabId }, "1.0", () => {
         if (chrome.runtime.lastError) {
@@ -193,6 +283,14 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 
 // 在标签页关闭时分离调试器
 chrome.tabs.onRemoved.addListener((tabId) => {
+  if (tabId === doubaoTabId) {
+    doubaoTabId = null;
+    if (ws) {
+      ws.close();
+    }
+    clearTimeout(reconnectTimeout);
+    reconnectTimeout = null;
+  }
   try {
     chrome.debugger.detach({ tabId });
   } catch (error) {
