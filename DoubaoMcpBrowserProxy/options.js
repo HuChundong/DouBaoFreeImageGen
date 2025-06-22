@@ -2,9 +2,12 @@
 function saveOptions() {
     const autoReload = document.getElementById('autoReload').checked;
     const clearCookies = document.getElementById('clearCookies').checked;
+    const wsUrl = document.getElementById('wsUrl').value;
+
     chrome.storage.sync.set({ 
         autoReload,
-        clearCookies
+        clearCookies,
+        wsUrl
     }, () => {
         const status = document.getElementById('status');
         status.textContent = '设置已保存';
@@ -17,15 +20,14 @@ function saveOptions() {
 
 // 从 Chrome 存储加载设置
 function loadOptions() {
-    chrome.storage.sync.get(['autoReload', 'clearCookies'], (result) => {
+    chrome.storage.sync.get(['autoReload', 'clearCookies', 'wsUrl'], (result) => {
         document.getElementById('autoReload').checked = result.autoReload !== undefined ? result.autoReload : true;
         document.getElementById('clearCookies').checked = result.clearCookies !== undefined ? result.clearCookies : true;
+        document.getElementById('wsUrl').value = result.wsUrl || 'ws://localhost:8080';
     });
 }
 
-// 监听设置变化
-document.getElementById('autoReload').addEventListener('change', saveOptions);
-document.getElementById('clearCookies').addEventListener('change', saveOptions);
-
 // 页面加载时加载设置
-document.addEventListener('DOMContentLoaded', loadOptions); 
+document.addEventListener('DOMContentLoaded', loadOptions);
+// 保存按钮事件
+document.getElementById('saveButton').addEventListener('click', saveOptions); 

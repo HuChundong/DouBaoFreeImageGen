@@ -1,7 +1,7 @@
-websockets>=10.4
-fastmcp>=0.1.0
-requests>=2.31.0
-asyncio>=3.4.3
-logging>=0.5.1.2
-dataclasses>=0.6
-typing>=3.7.4.3 
+websockets
+fastmcp
+requests
+asyncio
+logging
+dataclasses
+typing

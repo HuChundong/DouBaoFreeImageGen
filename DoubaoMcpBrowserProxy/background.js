@@ -168,7 +168,7 @@ chrome.debugger.onEvent.addListener(async (source, method, params) => {
 });
 
 // --- WebSocket Logic ---
-const WEBSOCKET_URL = 'ws://localhost:8080';
+const DEFAULT_WEBSOCKET_URL = 'ws://localhost:8080';
 const RECONNECT_DELAY_MS = 5000;
 let ws = null;
 let reconnectTimeout = null;
@@ -180,49 +180,56 @@ function connectWebSocket() {
         return;
     }
 
-    console.log(`[WebSocket] Attempting to connect to ${WEBSOCKET_URL}`);
+    chrome.storage.sync.get(['wsUrl'], (result) => {
+        const websocketUrl = result.wsUrl || DEFAULT_WEBSOCKET_URL;
+        console.log(`[WebSocket] Attempting to connect to ${websocketUrl}`);
 
-    try {
-        ws = new WebSocket(WEBSOCKET_URL);
+        try {
+            ws = new WebSocket(websocketUrl);
 
-        ws.onopen = () => {
-            console.log("[WebSocket] Connected successfully.");
-            clearTimeout(reconnectTimeout);
-            reconnectTimeout = null;
-            chrome.tabs.get(doubaoTabId, (tab) => {
-                if (tab) {
-                    sendWebSocketMessage({ type: 'scriptReady', url: tab.url });
+            ws.onopen = () => {
+                console.log("[WebSocket] Connected successfully.");
+                clearTimeout(reconnectTimeout);
+                reconnectTimeout = null;
+                if (doubaoTabId) {
+                    chrome.tabs.get(doubaoTabId, (tab) => {
+                        if (tab) {
+                            sendWebSocketMessage({ type: 'scriptReady', url: tab.url });
+                        }
+                    });
                 }
-            });
-        };
+            };
 
-        ws.onmessage = (event) => {
-            console.log("[WebSocket] Message from server:", event.data);
-            if (doubaoTabId) {
-                chrome.tabs.sendMessage(doubaoTabId, {
-                    type: 'COMMAND_FROM_SERVER',
-                    data: event.data
-                });
-            }
-        };
+            ws.onmessage = (event) => {
+                console.log("[WebSocket] Message from server:", event.data);
+                if (doubaoTabId) {
+                    chrome.tabs.sendMessage(doubaoTabId, {
+                        type: 'COMMAND_FROM_SERVER',
+                        data: event.data
+                    });
+                }
+            };
 
-        ws.onerror = (error) => {
-            console.warn("[WebSocket] Error:", error);
-            ws.close();
-        };
+            ws.onerror = (error) => {
+                console.warn("[WebSocket] Error:", error);
+                ws.close(); // Ensure closure on error to trigger onclose
+            };
 
-        ws.onclose = (event) => {
-            console.log(`[WebSocket] Disconnected (code: ${event.code}, reason: ${event.reason}).`);
-            ws = null;
-            if (!event.wasClean) {
-                scheduleReconnect();
-            }
-        };
+            ws.onclose = (event) => {
+                console.log(`[WebSocket] Disconnected (code: ${event.code}, reason: ${event.reason}).`);
+                ws = null;
+                // Don't reconnect automatically if the server was never reached or connection was clean.
+                // Reconnect only on abnormal closure.
+                if (!event.wasClean) {
+                    scheduleReconnect();
+                }
+            };
 
-    } catch (e) {
-        console.error("[WebSocket] Failed to create WebSocket instance:", e);
-        scheduleReconnect();
-    }
+        } catch (e) {
+            console.error("[WebSocket] Failed to create WebSocket instance:", e);
+            scheduleReconnect(); // Also schedule reconnect on construction error
+        }
+    });
 }
 
 function scheduleReconnect() {

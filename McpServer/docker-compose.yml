@@ -1,0 +1,10 @@
+version: '3.8'
+
+services:
+  mcpserver:
+    build: .
+    container_name: mcp-server-container
+    ports:
+      - "8080:8080"
+      - "8081:8081"
+    restart: always 
