@@ -60,6 +60,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         // 直接发送并清理
         performSendAndCleanup();
+    } else if (message.type === 'COMMAND_FROM_SERVER' && message.data) {
+        console.log(`[Message Handler] Received command from background: "${message.data}"`);
+        handleReceivedCommand(message.data);
     }
 });
 
