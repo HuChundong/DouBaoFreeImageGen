@@ -172,3 +172,13 @@ print(response.json())
 ## 致谢
 
 豆包强大的文生图模型。 
+
+## Star History
+
+<a href="https://www.star-history.com/#HuChundong/DouBaoFreeImageGen&Date">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=HuChundong/DouBaoFreeImageGen&type=Date&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=HuChundong/DouBaoFreeImageGen&type=Date" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=HuChundong/DouBaoFreeImageGen&type=Date" />
+ </picture>
+</a>
