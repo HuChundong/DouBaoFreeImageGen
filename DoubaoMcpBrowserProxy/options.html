@@ -56,6 +56,83 @@
             color: #cc0000;
             display: block;
         }
+        
+        /* Tab管理样式 */
+        .tab-item {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            margin-bottom: 10px;
+            background: #f8f9fa;
+        }
+        
+        .tab-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .tab-id {
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .tab-status {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        
+        .tab-status.idle {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        
+        .tab-status.busy {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        
+        .tab-info {
+            color: #666;
+            font-size: 14px;
+        }
+        
+        .tab-actions {
+            margin-top: 10px;
+        }
+        
+        .tab-actions button {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 5px;
+            font-size: 12px;
+        }
+        
+        .btn-test {
+            background-color: #17a2b8;
+            color: white;
+        }
+        
+        .ws-connected {
+            color: #28a745;
+        }
+        
+        .ws-disconnected {
+            color: #dc3545;
+        }
+        
+        .queue-info {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #e9ecef;
+            border-radius: 4px;
+        }
     </style>
 </head>
 <body>
@@ -93,6 +170,23 @@
         <button id="saveButton" style="padding: 10px 20px; border: none; background-color: #007bff; color: white; border-radius: 4px; cursor: pointer;">保存设置</button>
 
         <div id="status" class="status"></div>
+        
+        <!-- Tab管理部分 -->
+        <div class="setting-item" style="margin-top: 30px;">
+            <h2>Tab 管理</h2>
+            <div class="setting-description">
+                查看和管理所有豆包tab的状态
+            </div>
+            
+            <div style="margin-top: 15px;">
+                <button id="refreshTabs" style="padding: 8px 16px; border: none; background-color: #28a745; color: white; border-radius: 4px; cursor: pointer; margin-right: 10px;">刷新状态</button>
+                <span id="wsStatus" style="margin-left: 10px; font-weight: bold;"></span>
+            </div>
+            
+            <div id="tabsList" style="margin-top: 15px;">
+                <!-- Tab列表将在这里动态生成 -->
+            </div>
+        </div>
     </div>
 
     <script src="options.js"></script>

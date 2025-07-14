@@ -172,7 +172,106 @@ const DEFAULT_WEBSOCKET_URL = 'ws://localhost:8080';
 const RECONNECT_DELAY_MS = 5000;
 let ws = null;
 let reconnectTimeout = null;
-let doubaoTabId = null;
+
+// 多tab管理
+let doubaoTabs = new Map(); // tabId -> { id, url, status: 'idle' | 'busy', lastUsed: timestamp }
+let taskQueue = []; // 任务队列
+let currentTabIndex = 0; // 轮询索引
+
+// tab状态管理
+function addDoubaoTab(tabId, url) {
+  doubaoTabs.set(tabId, {
+    id: tabId,
+    url: url,
+    status: 'idle',
+    lastUsed: Date.now()
+  });
+  console.log(`[TabManager] Added tab ${tabId}, total tabs: ${doubaoTabs.size}`);
+}
+
+function removeDoubaoTab(tabId) {
+  if (doubaoTabs.has(tabId)) {
+    doubaoTabs.delete(tabId);
+    console.log(`[TabManager] Removed tab ${tabId}, remaining tabs: ${doubaoTabs.size}`);
+  }
+}
+
+function setTabStatus(tabId, status) {
+  if (doubaoTabs.has(tabId)) {
+    doubaoTabs.get(tabId).status = status;
+    if (status === 'idle') {
+      doubaoTabs.get(tabId).lastUsed = Date.now();
+    }
+    console.log(`[TabManager] Tab ${tabId} status changed to ${status}`);
+  }
+}
+
+function getIdleTab() {
+  // 轮询策略：找到空闲的tab
+  const idleTabs = Array.from(doubaoTabs.values()).filter(tab => tab.status === 'idle');
+  
+  if (idleTabs.length === 0) {
+    return null;
+  }
+  
+  // 使用轮询策略选择tab
+  const selectedTab = idleTabs[currentTabIndex % idleTabs.length];
+  currentTabIndex = (currentTabIndex + 1) % idleTabs.length;
+  
+  return selectedTab;
+}
+
+function getAllDoubaoTabs() {
+  return Array.from(doubaoTabs.values());
+}
+
+// 任务分发
+function dispatchTask(task) {
+  const idleTab = getIdleTab();
+  
+  if (idleTab) {
+    // 有空闲tab，直接分发
+    setTabStatus(idleTab.id, 'busy');
+    sendTaskToTab(idleTab.id, task);
+    return true;
+  } else {
+    // 没有空闲tab，加入队列
+    taskQueue.push(task);
+    console.log(`[TaskManager] Task queued. Queue length: ${taskQueue.length}`);
+    return false;
+  }
+}
+
+function sendTaskToTab(tabId, task) {
+  chrome.tabs.sendMessage(tabId, {
+    type: 'COMMAND_FROM_SERVER',
+    data: task
+  }, (response) => {
+    if (chrome.runtime.lastError) {
+      console.error(`[TaskManager] Failed to send task to tab ${tabId}:`, chrome.runtime.lastError);
+      // 如果发送失败，将tab标记为空闲并重新分发任务
+      setTabStatus(tabId, 'idle');
+      processTaskQueue();
+    }
+  });
+}
+
+function processTaskQueue() {
+  while (taskQueue.length > 0) {
+    const task = taskQueue.shift();
+    if (!dispatchTask(task)) {
+      // 如果无法分发，重新加入队列头部
+      taskQueue.unshift(task);
+      break;
+    }
+  }
+}
+
+// 任务完成回调
+function onTaskCompleted(tabId) {
+  setTabStatus(tabId, 'idle');
+  processTaskQueue(); // 处理队列中的任务
+}
 
 function connectWebSocket() {
     if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) {
@@ -191,35 +290,45 @@ function connectWebSocket() {
                 console.log("[WebSocket] Connected successfully.");
                 clearTimeout(reconnectTimeout);
                 reconnectTimeout = null;
-                if (doubaoTabId) {
-                    chrome.tabs.get(doubaoTabId, (tab) => {
-                        if (tab) {
-                            sendWebSocketMessage({ type: 'scriptReady', url: tab.url });
+                
+                // 通知所有tab连接已建立
+                const allTabs = getAllDoubaoTabs();
+                allTabs.forEach(tab => {
+                    chrome.tabs.get(tab.id, (tabInfo) => {
+                        if (tabInfo) {
+                            sendWebSocketMessage({ type: 'scriptReady', url: tabInfo.url, tabId: tab.id });
                         }
                     });
-                }
+                });
             };
 
             ws.onmessage = (event) => {
                 console.log("[WebSocket] Message from server:", event.data);
-                if (doubaoTabId) {
-                    chrome.tabs.sendMessage(doubaoTabId, {
-                        type: 'COMMAND_FROM_SERVER',
-                        data: event.data
-                    });
+                
+                try {
+                    const message = JSON.parse(event.data);
+                    
+                    // 如果消息指定了特定的tabId
+                    if (message.targetTabId && doubaoTabs.has(message.targetTabId)) {
+                        sendTaskToTab(message.targetTabId, event.data);
+                    } else {
+                        // 使用轮询策略分发任务
+                        dispatchTask(event.data);
+                    }
+                } catch (e) {
+                    // 如果不是JSON格式，直接分发
+                    dispatchTask(event.data);
                 }
             };
 
             ws.onerror = (error) => {
                 console.warn("[WebSocket] Error:", error);
-                ws.close(); // Ensure closure on error to trigger onclose
+                ws.close();
             };
 
             ws.onclose = (event) => {
                 console.log(`[WebSocket] Disconnected (code: ${event.code}, reason: ${event.reason}).`);
                 ws = null;
-                // Don't reconnect automatically if the server was never reached or connection was clean.
-                // Reconnect only on abnormal closure.
                 if (!event.wasClean) {
                     scheduleReconnect();
                 }
@@ -227,7 +336,7 @@ function connectWebSocket() {
 
         } catch (e) {
             console.error("[WebSocket] Failed to create WebSocket instance:", e);
-            scheduleReconnect(); // Also schedule reconnect on construction error
+            scheduleReconnect();
         }
     });
 }
@@ -258,7 +367,45 @@ function sendWebSocketMessage(data) {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === 'COLLECTED_IMAGE_URLS') {
         console.log('[Background] Received collected image URLs from content script:', message.urls);
-        sendWebSocketMessage({ type: 'collectedImageUrls', urls: message.urls });
+        sendWebSocketMessage({ 
+            type: 'collectedImageUrls', 
+            urls: message.urls,
+            tabId: sender.tab.id
+        });
+    } else if (message.type === 'TASK_COMPLETED') {
+        // content script通知任务完成
+        console.log(`[Background] Task completed on tab ${sender.tab.id}`);
+        onTaskCompleted(sender.tab.id);
+        sendResponse({ success: true });
+    } else if (message.type === 'TAB_STATUS_UPDATE') {
+        // content script更新tab状态
+        if (message.status) {
+            setTabStatus(sender.tab.id, message.status);
+        }
+        sendResponse({ success: true });
+    } else if (message.type === 'GET_TAB_STATUS') {
+        // 获取所有tab状态
+        const tabStatus = getAllDoubaoTabs().map(tab => ({
+            id: tab.id,
+            status: tab.status,
+            lastUsed: tab.lastUsed,
+            url: tab.url
+        }));
+        sendResponse({ 
+            tabs: tabStatus, 
+            queueLength: taskQueue.length,
+            wsConnected: ws && ws.readyState === WebSocket.OPEN
+        });
+        return true;
+    } else if (message.type === 'FORCE_TASK_DISPATCH') {
+        // 强制分发指定任务到指定tab
+        if (message.tabId && message.task && doubaoTabs.has(message.tabId)) {
+            sendTaskToTab(message.tabId, message.task);
+            sendResponse({ success: true });
+        } else {
+            sendResponse({ success: false, error: 'Invalid tab or task' });
+        }
+        return true;
     }
 });
 
@@ -268,8 +415,14 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     changeInfo.status === "complete" &&
     tab.url?.startsWith("https://www.doubao.com")
   ) {
-    doubaoTabId = tabId; // Store the tab ID
-    connectWebSocket(); // Connect WebSocket when the page is ready
+    // 添加到tab管理器
+    addDoubaoTab(tabId, tab.url);
+    
+    // 如果这是第一个tab，建立WebSocket连接
+    if (doubaoTabs.size === 1) {
+      connectWebSocket();
+    }
+    
     try {
       chrome.debugger.attach({ tabId }, "1.0", () => {
         if (chrome.runtime.lastError) {
@@ -290,17 +443,26 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 
 // 在标签页关闭时分离调试器
 chrome.tabs.onRemoved.addListener((tabId) => {
-  if (tabId === doubaoTabId) {
-    doubaoTabId = null;
-    if (ws) {
-      ws.close();
+  if (doubaoTabs.has(tabId)) {
+    removeDoubaoTab(tabId);
+    
+    // 如果没有剩余的豆包tab，关闭WebSocket
+    if (doubaoTabs.size === 0) {
+      if (ws) {
+        ws.close();
+      }
+      clearTimeout(reconnectTimeout);
+      reconnectTimeout = null;
+      taskQueue = []; // 清空任务队列
+      currentTabIndex = 0; // 重置轮询索引
     }
-    clearTimeout(reconnectTimeout);
-    reconnectTimeout = null;
   }
+  
   try {
     chrome.debugger.detach({ tabId });
   } catch (error) {
     console.error("Debugger detach error:", error);
   }
 });
+
+

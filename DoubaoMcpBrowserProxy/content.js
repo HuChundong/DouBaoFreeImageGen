@@ -66,6 +66,28 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
 });
 
+// 通知background script任务完成
+function notifyTaskCompleted() {
+    chrome.runtime.sendMessage({ type: 'TASK_COMPLETED' }, (response) => {
+        if (chrome.runtime.lastError) {
+            console.error('[TaskManager] Error notifying task completion:', chrome.runtime.lastError);
+        } else {
+            console.log('[TaskManager] Task completion notification sent successfully');
+        }
+    });
+}
+
+// 更新tab状态
+function updateTabStatus(status) {
+    chrome.runtime.sendMessage({ type: 'TAB_STATUS_UPDATE', status: status }, (response) => {
+        if (chrome.runtime.lastError) {
+            console.error('[TaskManager] Error updating tab status:', chrome.runtime.lastError);
+        } else {
+            console.log(`[TaskManager] Tab status updated to ${status}`);
+        }
+    });
+}
+
 // 从 Chrome 存储中读取设置
 chrome.storage.sync.get(['autoReload', 'clearCookies'], function(result) {
     if (result.autoReload !== undefined) {
@@ -148,12 +170,17 @@ function findChatInput() {
 }
 
 async function handleReceivedCommand(commandText) {
+    // 开始处理任务，更新状态为忙碌
+    updateTabStatus('busy');
+    
     const inputElement = findChatInput();
 
     if (!inputElement) {
         console.error("[Input] Chat input TEXTAREA element not found using selector:", CHAT_INPUT_SELECTOR);
         // WebSocket逻辑已移除，这里可以通过chrome.runtime.sendMessage或其他方式与background通信
         chrome.runtime.sendMessage({ type: 'error', message: 'Chat input textarea element not found' });
+        // 任务失败，恢复为空闲状态
+        updateTabStatus('idle');
         return;
     }
 
@@ -202,12 +229,19 @@ async function handleReceivedCommand(commandText) {
 
             const dispatched = inputElement.dispatchEvent(enterEvent);
             console.log(`[Input] Dispatched 'keydown' (Enter) after delay. Event cancellation status: ${!dispatched}.`);
+            
+            // 任务完成通知
+            setTimeout(() => {
+                notifyTaskCompleted();
+            }, 1000); // 给一些时间让输入完成
         }, INPUT_SEND_DELAY_MS);
 
     } catch (e) {
         console.error("[Input] Error during input simulation:", e);
         // WebSocket逻辑已移除，这里可以通过chrome.runtime.sendMessage或其他方式与background通信
         chrome.runtime.sendMessage({ type: 'error', message: 'Input simulation failed', error: e.message });
+        // 任务失败，恢复为空闲状态
+        updateTabStatus('idle');
     }
 }
 
@@ -217,6 +251,9 @@ window.addEventListener('load', () => {
     console.log("[Script] Window 'load' event triggered.");
     // WebSocket连接逻辑已移除
     createDownloadButton();
+    
+    // 初始化tab状态为空闲
+    updateTabStatus('idle');
 });
 
 // --- Cleanup ---
@@ -225,6 +262,9 @@ window.addEventListener('beforeunload', () => {
     clearTimeout(imageCollectionTimer);
     console.log("[Script] Image collection debounce timer cleared.");
     // WebSocket关闭逻辑已移除
+    
+    // 清理tab状态
+    updateTabStatus('idle');
 });
 
 // 创建下载按钮
